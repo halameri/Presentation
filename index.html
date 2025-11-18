@@ -1,0 +1,1633 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sensor-Meteorology Data Matching System</title>
+
+    <!-- ==========================================================================
+         EXTERNAL DEPENDENCIES
+         ========================================================================== -->
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+
+    <!-- Leaflet Omnivore (KML parser) -->
+    <script src="https://unpkg.com/leaflet-omnivore@0.3.4/leaflet-omnivore.min.js"></script>
+
+    <!-- ==========================================================================
+         LOCAL STYLES & SCRIPTS
+         ========================================================================== -->
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="styles.css">
+
+    <!-- Custom Scripts (loaded at end of body) -->
+</head>
+<body>
+    <!-- ==========================================================================
+         PRESENTATION CONTAINER
+
+         SLIDE INDEX:
+         - Slide 1:  Title & Overview
+         - Slide 2:  Project Objective
+         - Slide 3:  Data Sources
+         - Slide 4:  Geographic Matching
+         - Slide 5:  Time Matching
+         - Slide 6:  Data Processing Pipeline
+         - Slide 7:  Output Data Structure
+         - Slide 8:  Statistics and Results
+         - Slide 9:  Data Labeling (Stage 2)
+         - Slide 10: 15-Day Sliding Window
+         - Slide 11: 9 Case Definitions
+         - Slide 12: Case Detection Logic
+         - Slide 13: Labeling Results
+         - Slide 14: Case Distribution Analysis
+         - Slide 15: Most Problematic Sensors
+         - Slide 16: Case-Based Statistics
+         - Slide 17: ML Recommendations & Conclusion
+         ========================================================================== -->
+
+    <div class="presentation-container">
+
+        <!-- ====================================================================
+             SLIDE 1: TITLE & OVERVIEW
+             ==================================================================== -->
+        <div class="slide" id="slide-title">
+            <h1>Sensor-Meteorology Data Matching System</h1>
+            <p style="text-align: center; font-size: 1.4em; color: #666; margin-top: 30px;">
+                Machine Learning Data Preparation Process for Detecting Faulty Temperature Sensors
+            </p>
+
+            <!-- Key Statistics -->
+            <div class="stats-grid" style="margin-top: 60px;">
+                <div class="stat-card">
+                    <div class="stat-label">Matched Sensors</div>
+                    <div class="stat-value">1,584</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Meteorology Stations</div>
+                    <div class="stat-value">1,850</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Sensor Readings</div>
+                    <div class="stat-value">6.1M+</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Meteorology Readings</div>
+                    <div class="stat-value">3.9M+</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 2: PROJECT OBJECTIVE
+             ==================================================================== -->
+        <div class="slide" id="slide-objective">
+            <h2>Project Objective</h2>
+
+            <div class="highlight-box">
+                <h3>Why Is This Study Necessary?</h3>
+                <p>
+                    <strong>FC_BOX temperature sensors</strong> installed in the field can sometimes make faulty measurements.
+                    To detect these faulty sensors, we must <strong>compare sensor data with meteorology station data</strong>.
+                </p>
+            </div>
+
+            <!-- Problem-Solution-Result Steps -->
+            <div class="step-container">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Problem</h4>
+                    <p>Some sensors are reading incorrect temperatures (e.g., showing 10°C when air temperature is 45°C)</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Solution</h4>
+                    <p>Compare sensor measurements with nearby meteorology station data</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Result</h4>
+                    <p>Automatic faulty sensor detection using machine learning model</p>
+                </div>
+            </div>
+
+            <div class="info-banner">
+                Quality data = Successful model! That's why the data preparation process is critical.
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 3: DATA SOURCES
+             ==================================================================== -->
+        <div class="slide" id="slide-data-sources">
+            <h2>Data Sources</h2>
+            <p>Our system contains 4 different data sources:</p>
+
+            <!-- Data Source 1: Sensor Data -->
+            <div class="data-source">
+                <div class="icon">🌡️</div>
+                <div class="data-content">
+                    <div class="data-title">1. Sensor Data (FC_BOX)</div>
+                    <p><strong>File:</strong> 4_10dissicaklik.csv</p>
+                    <p><strong>Record Count:</strong> 6,157,538 readings</p>
+                    <p><strong>Time Range:</strong> July 1, 2025 - September 30, 2025</p>
+                    <p><strong>Measurement Frequency:</strong> Every 5 minutes</p>
+                    <p><strong>Unique Sensors:</strong> 1,782 FC_BOX</p>
+                    <p><strong>Important Columns:</strong></p>
+                    <ul>
+                        <li><code>BETTA_CODE</code> - Sensor ID (e.g., BOX 1930)</li>
+                        <li><code>BX_DIS_SCK_PR</code> - Measured temperature (°C)</li>
+                        <li><code>LOG_MINUTE</code> - Measurement time</li>
+                        <li><code>ENLEM, BOYLAM</code> - Sensor coordinates</li>
+                        <li><code>CITY_NAME, LOCATION_NAME</code> - Location information</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Data Source 2: Meteorology Data -->
+            <div class="data-source">
+                <div class="icon">🌦️</div>
+                <div class="data-content">
+                    <div class="data-title">2. Meteorology Data</div>
+                    <p><strong>File:</strong> 4_10MetrolojiMall.csv</p>
+                    <p><strong>Record Count:</strong> 3,935,729 readings</p>
+                    <p><strong>Time Range:</strong> July 1, 2025 - September 30, 2025</p>
+                    <p><strong>Measurement Frequency:</strong> Hourly</p>
+                    <p><strong>Unique Stations:</strong> 1,850 coordinate pairs</p>
+                    <p><strong>Important Columns:</strong></p>
+                    <ul>
+                        <li><code>ID</code> - Meteorology station ID</li>
+                        <li><code>SICAKLIK</code> - Official air temperature (°C)</li>
+                        <li><code>VERI_ZAMANI</code> - Measurement time</li>
+                        <li><code>ENLEM, BOYLAM</code> - Station coordinates</li>
+                        <li><code>NEM</code> - Humidity ratio (%)</li>
+                        <li><code>YUKSEKLIK</code> - Altitude (meters)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Data Source 3: Operation Status Data -->
+            <div class="data-source">
+                <div class="icon">⚙️</div>
+                <div class="data-content">
+                    <div class="data-title">3. Operation Status Data (Calisma)</div>
+                    <p><strong>File:</strong> FCBCALISMADURUMU.csv</p>
+                    <p><strong>Record Count:</strong> 4,654,824 readings</p>
+                    <p><strong>Time Range:</strong> July 1, 2025 - September 30, 2025</p>
+                    <p><strong>Unique Sensors:</strong> 1,631 FC_BOX</p>
+                    <p><strong>Purpose:</strong> Tracking sensor operation status</p>
+                    <p><strong>Important Columns:</strong></p>
+                    <ul>
+                        <li><code>BETTA_CODE</code> - Sensor ID</li>
+                        <li><code>BX_CHZ_STT_PR</code> - Operation status (KLMCLSYR, FCBCLSYR)</li>
+                        <li><code>LOG_DATE_FULL</code> - Status record time</li>
+                        <li><code>CITY_NAME, LOCATION_NAME, REGION_NAME</code> - Location information</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Data Source 4: Mapping File -->
+            <div class="data-source">
+                <div class="icon">🗺️</div>
+                <div class="data-content">
+                    <div class="data-title">4. Mapping File</div>
+                    <p><strong>File:</strong> Rakim_MesafeBilgileri.csv</p>
+                    <p><strong>Record Count:</strong> 1,912 matches</p>
+                    <p><strong>Purpose:</strong> Linking each sensor to its nearest meteorology station</p>
+                    <p><strong>Important Columns:</strong></p>
+                    <ul>
+                        <li><code>FC Box Kodu</code> - Sensor ID</li>
+                        <li><code>Metroloji_ENLEM, Metroloji_BOYLAM</code> - Meteorology coordinates</li>
+                        <li><code>ELEVATION_FCBOX</code> - Sensor altitude (meters)</li>
+                        <li><code>ENLEM, BOYLAM</code> - Sensor coordinates (for matching)</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 4: GEOGRAPHIC MATCHING
+             ==================================================================== -->
+        <div class="slide" id="slide-geographic-matching">
+            <h2>Geographic Matching Logic</h2>
+
+            <div class="highlight-box">
+                <h3>Main Approach: Exact Coordinate Matching</h3>
+                <p>
+                    For each sensor (FC_BOX), we look at the meteorology coordinates defined in the mapping file.
+                    We find meteorology readings that match these coordinates <strong>within ±0.003° precision</strong> (approximately same location).
+                    This method matches only data from <strong>exactly the same station</strong>.
+                </p>
+            </div>
+
+            <!-- Workflow Diagram -->
+            <div class="workflow-diagram">
+                <div class="workflow-box">
+                    <strong>FC_BOX</strong><br>
+                    (Sensor)<br>
+                    <div class="coordinate-display">
+                        40.650°N<br>
+                        35.791°E
+                    </div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>Mapping</strong><br>
+                    (File)<br>
+                    <div class="coordinate-display">
+                        Met Coordinate:<br>
+                        40.650°N, 35.791°E
+                    </div>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>Meteorology</strong><br>
+                    (Exact Match)<br>
+                    <div class="coordinate-display">
+                        Coordinate:<br>
+                        40.650°N, 35.791°E
+                    </div>
+                </div>
+            </div>
+
+            <h3>Sensor-Meteorology Matches Across Turkey</h3>
+
+            <!-- Interactive Leaflet Map -->
+            <div id="kmlMap" style="width: 100%; height: 500px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin: 20px 0; z-index: 1;"></div>
+
+            <!-- Map Information Box -->
+            <div style="background: #f0f9ff; border: 2px solid #3b82f6; border-radius: 10px; padding: 20px; margin: 20px 0;">
+                <h4 style="color: #1e40af; margin-top: 0;">Interactive KML Map</h4>
+                <p style="margin: 10px 0;">
+                    <strong>File:</strong> <code>MetrolojıSensorMatch.kml</code><br>
+                    <strong>Content:</strong> 5 meteorology stations and matched sensor locations<br>
+                    <strong>Colors:</strong> Green = Sensor, Red = Meteorology station<br>
+                    <strong>Features:</strong> You can zoom, click on points to see details
+                </p>
+                <p style="background: #dcfce7; padding: 15px; border-radius: 8px; border-left: 4px solid #22c55e; margin-top: 15px;">
+                    <strong>Map Active!</strong><br>
+                    You can view all sensor-meteorology matches interactively on the map above.<br>
+                    Zoom in/out, drag, and click on points to see details!
+                </p>
+            </div>
+
+            <div style="text-align: center; margin-top: 20px;">
+                <p style="color: #666;">
+                    <strong>Example Location:</strong> BOX 2456 sensor in Amasya (40.650°N, 35.791°E).<br>
+                    Exact coordinate match with meteorology station.
+                </p>
+            </div>
+
+            <!-- Matching Logic Example -->
+            <div class="example-card">
+                <h4>Matching Logic: Exact Coordinate Comparison</h4>
+                <p>We use ±0.003° precision for coordinate matching (approximately 330 meters):</p>
+                <div class="code-block">
+def exact_coordinate_match(fcbox_lat, fcbox_lon, met_lat, met_lon, precision=0.003):
+    # Check coordinate difference
+    lat_diff = abs(fcbox_lat - met_lat)
+    lon_diff = abs(fcbox_lon - met_lon)
+
+    # Within tolerance for both axes?
+    if lat_diff <= precision and lon_diff <= precision:
+        return True  # Match successful
+    return False
+                </div>
+                <p><strong>Example Match:</strong></p>
+                <p>
+                    Sensor: (40.650°N, 35.791°E) ↔ Meteorology: (40.650°N, 35.791°E)<br>
+                    Latitude difference: 0.000° | Longitude difference: 0.000°<br>
+                    <strong>Result:</strong> Exact match - Same station!
+                </p>
+                <p style="margin-top: 15px;">
+                    <strong>Why this method?</strong> Exact coordinate matching provides the most accurate results for cases
+                    where sensors are at the same location as meteorology stations or use the same data source.
+                </p>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 5: TIME MATCHING
+             ==================================================================== -->
+        <div class="slide" id="slide-time-matching">
+            <h2>Time Matching</h2>
+
+            <div class="highlight-box">
+                <h3>Why Is Time Matching Important?</h3>
+                <p>
+                    Sensors take measurements <strong>every 5 minutes</strong>, while meteorology stations take measurements <strong>every hour</strong>.
+                    We must compare in the same time window for meaningful results!
+                </p>
+            </div>
+
+            <h3>Time Tolerance: ±30 Minutes</h3>
+            <p>
+                For each meteorology reading, we find the sensor reading that is <strong>within ±30 minutes</strong> of that time.
+            </p>
+
+            <!-- Interactive Demo -->
+            <div class="interactive-demo">
+                <h4>Interactive Example</h4>
+                <div class="demo-controls">
+                    <button onclick="showTimeExample('example1')">Example 1: Exact Match</button>
+                    <button onclick="showTimeExample('example2')">Example 2: Within Tolerance</button>
+                    <button onclick="showTimeExample('example3')">Example 3: Outside Tolerance</button>
+                </div>
+
+                <div class="visualization" id="timeViz">
+                    <p style="text-align: center; color: #666;">Click the buttons above to see examples</p>
+                </div>
+            </div>
+
+            <!-- Time Matching Table -->
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Meteorology Time</th>
+                            <th>Sensor Time</th>
+                            <th>Time Difference</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>09:45:00</td>
+                            <td>09:43:00</td>
+                            <td>2 minutes</td>
+                            <td>Matched</td>
+                        </tr>
+                        <tr>
+                            <td>10:00:00</td>
+                            <td>10:00:00</td>
+                            <td>0 minutes</td>
+                            <td>Matched</td>
+                        </tr>
+                        <tr>
+                            <td>11:00:00</td>
+                            <td>11:26:00</td>
+                            <td>26 minutes</td>
+                            <td>Matched</td>
+                        </tr>
+                        <tr>
+                            <td>12:00:00</td>
+                            <td>12:35:00</td>
+                            <td>35 minutes</td>
+                            <td>Not matched (tolerance exceeded)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Algorithm Code -->
+            <div class="code-block">
+# Time matching algorithm
+for each_meteorology_reading:
+    met_time = meteorology_reading.time
+
+    # Look at all sensor readings of this FC_BOX
+    for each_sensor_reading:
+        time_difference = |sensor_time - met_time|
+
+        if time_difference <= 30 minutes:
+            # Find the closest one
+            closest_sensor = argmin(time_difference)
+
+            # Match!
+            create_match(meteorology, closest_sensor)
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 6: DATA PROCESSING PIPELINE
+             ==================================================================== -->
+        <div class="slide" id="slide-pipeline">
+            <h2>Data Processing Pipeline - Step by Step</h2>
+
+            <div class="step-container">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Data Loading</h4>
+                    <p>Read 4 CSV files (sensor, meteorology, operation, mapping) and clean column names</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Time Conversion</h4>
+                    <p>Convert dates in different formats to Python datetime and apply Turkey timezone (UTC+3)</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Coordinate Processing</h4>
+                    <p>Convert coordinates to numeric format and group meteorology data by coordinates (1,850 groups)</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Exact Coordinate Matching</h4>
+                    <p>For each FC_BOX, perform exact matching using met coordinates from mapping file with ±0.003° precision</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">5</div>
+                    <h4>Merge Sensor Data</h4>
+                    <p>Merge matched FC_BOXes with sensor data and create 1,584 sensor groups</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">6</div>
+                    <h4>Time Matching</h4>
+                    <p>For each meteorology reading, find the closest sensor reading within ±30 minutes</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">7</div>
+                    <h4>Operation Status Integration</h4>
+                    <p>Add operation status (BX_CHZ_STT_PR) information to matched records (91.8% success rate)</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">8</div>
+                    <h4>Data Consolidation</h4>
+                    <p>Combine all matches into a single DataFrame and save as 2.4M+ row CSV</p>
+                </div>
+            </div>
+
+            <div class="highlight-box">
+                <h3>Performance Optimizations</h3>
+                <ul>
+                    <li><strong>Numpy vectorization:</strong> Distance calculations vectorized (1000x faster)</li>
+                    <li><strong>Sensor indexing:</strong> Pre-grouping by FC_BOX</li>
+                    <li><strong>List accumulation:</strong> Using lists instead of DataFrame concatenation (memory savings)</li>
+                    <li><strong>Progress tracking:</strong> Status report every 100 FC_BOX</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 7: OUTPUT DATA STRUCTURE
+             ==================================================================== -->
+        <div class="slide" id="slide-output">
+            <h2>Output Data Structure</h2>
+
+            <p>The resulting <code>clean_joined_dataset.csv</code> file contains these columns:</p>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Column Name</th>
+                            <th>Description</th>
+                            <th>Example Value</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>FC_BOX_CODE</strong></td>
+                            <td>Sensor ID</td>
+                            <td>BOX 1930</td>
+                        </tr>
+                        <tr>
+                            <td><strong>MET_ID</strong></td>
+                            <td>Meteorology station ID</td>
+                            <td>oyz_meteo_durum_20250701_1000_8</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Met_Timestamp</strong></td>
+                            <td>Meteorology measurement time</td>
+                            <td>2025-07-01 09:45</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Met_Temperature</strong></td>
+                            <td>Meteorology temperature (°C)</td>
+                            <td>24.3</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sensor_Timestamp</strong></td>
+                            <td>Sensor measurement time</td>
+                            <td>2025-07-01 09:36</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Sensor_Temperature</strong></td>
+                            <td>Sensor temperature (°C)</td>
+                            <td>23.2</td>
+                        </tr>
+                        <tr>
+                            <td><strong>BX_CHZ_STT_PR</strong></td>
+                            <td>Sensor operation status</td>
+                            <td>KLMCLSYR / FCBCLSYR</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Calisma_Timestamp</strong></td>
+                            <td>Operation status record time</td>
+                            <td>2025-07-01 00:58</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Met_NEM</strong></td>
+                            <td>Humidity ratio (%)</td>
+                            <td>62</td>
+                        </tr>
+                        <tr>
+                            <td><strong>CITY_NAME</strong></td>
+                            <td>City</td>
+                            <td>AMASYA</td>
+                        </tr>
+                        <tr>
+                            <td><strong>LOCATION_NAME</strong></td>
+                            <td>District/Location</td>
+                            <td>MERKEZ</td>
+                        </tr>
+                        <tr>
+                            <td><strong>REGION_NAME</strong></td>
+                            <td>Regional directorate</td>
+                            <td>SAMSUN REGIONAL DIRECTORATE</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Example Row -->
+            <div class="example-card">
+                <h4>Example Row</h4>
+                <div class="code-block">
+FC_BOX_CODE: BOX 2456
+MET_ID: oyz_meteo_durum_20250701_1000_8
+Met_Timestamp: 2025-07-01 09:45
+Met_Temperature: 24.3°C
+Sensor_Timestamp: 2025-07-01 09:43
+Sensor_Temperature: 24.4°C
+BX_CHZ_STT_PR: KLMCLSYR
+Calisma_Timestamp: 2025-07-01 00:54
+Met_NEM: Data available (in table)
+CITY_NAME: AMASYA
+LOCATION_NAME: MERKEZ
+
+<strong>Interpretation:</strong>
+Exact coordinate match (same station)
+Time difference only 2 minutes
+Temperature difference 0.1°C (perfect match!)
+Operation status: KLMCLSYR (Air Conditioner Working)
+This sensor is working properly
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 8: STATISTICS AND RESULTS
+             ==================================================================== -->
+        <div class="slide" id="slide-statistics">
+            <h2>Statistics and Results</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Total Matches</div>
+                    <div class="stat-value">2.4M+</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">rows successfully matched</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Matched FC_BOX</div>
+                    <div class="stat-value">1,584</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">sensor data created</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Operation Data</div>
+                    <div class="stat-value">91.8%</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">operation status in matches</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Coordinate Precision</div>
+                    <div class="stat-value">±0.003°</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">exact match tolerance</p>
+                </div>
+            </div>
+
+            <h3>Matching Success</h3>
+            <div class="visualization">
+                <p><strong>Exact Coordinate Matching Results</strong></p>
+                <div style="display: flex; justify-content: space-around; margin: 30px 0;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2.5em;">📍</div>
+                        <p><strong>Defined in Mapping</strong></p>
+                        <p style="color: #667eea; font-size: 1.8em;">1,912</p>
+                        <p style="font-size: 0.9em;">FC_BOX</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2.5em;">✅</div>
+                        <p><strong>Exact Coordinate Matched</strong></p>
+                        <p style="color: #10b981; font-size: 1.8em;">1,772</p>
+                        <p style="font-size: 0.9em;">FC_BOX (92.7%)</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2.5em;">📊</div>
+                        <p><strong>Matched with Data</strong></p>
+                        <p style="color: #667eea; font-size: 1.8em;">1,584</p>
+                        <p style="font-size: 0.9em;">FC_BOX (82.8%)</p>
+                    </div>
+                </div>
+                <div style="margin-top: 20px; font-size: 0.95em;">
+                    <p>±0.003° precision: Approximately 330 meter tolerance</p>
+                    <p>Meteorology stations: 1,850 unique coordinates</p>
+                    <p>Unmatched: 140 FC_BOX (meteorology coordinate not in dataset)</p>
+                </div>
+            </div>
+
+            <h3>Altitude Difference Distribution</h3>
+            <div class="visualization">
+                <p><strong>Altitude Difference (Sensor - Meteorology, meters)</strong></p>
+                <div style="display: flex; justify-content: space-around; margin: 30px 0;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 2.5em;">🏔️</div>
+                        <p><strong>Maximum</strong></p>
+                        <p style="color: #ef4444; font-size: 1.5em;">+1,417 m</p>
+                        <p style="font-size: 0.9em;">Sensor much higher</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2.5em;">📊</div>
+                        <p><strong>Median</strong></p>
+                        <p style="color: #10b981; font-size: 1.5em;">-6 m</p>
+                        <p style="font-size: 0.9em;">Most sensors at similar altitude</p>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 2.5em;">🏖️</div>
+                        <p><strong>Minimum</strong></p>
+                        <p style="color: #3b82f6; font-size: 1.5em;">-1,919 m</p>
+                        <p style="font-size: 0.9em;">Sensor much lower</p>
+                    </div>
+                </div>
+                <div class="info-banner" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);">
+                    Altitude difference affects temperature difference! ~0.6°C difference per 100m.
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 9: DATA LABELING (STAGE 2)
+             ==================================================================== -->
+        <div class="slide" id="slide-labeling">
+            <h2>Second Stage: Data Labeling</h2>
+
+            <div class="highlight-box">
+                <h3>Objective: Detecting Sensor Error Types</h3>
+                <p>
+                    In the first stage, we obtained 2.4M+ matched sensor-meteorology records.
+                    In the second stage, we analyze these records in <strong>15-day windows</strong>,
+                    labeling each window according to <strong>9 different cases (error types)</strong>.
+                </p>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Analyzed Sensors</div>
+                    <div class="stat-value">1,570</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Created Windows</div>
+                    <div class="stat-value">106,823</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Overall Error Rate</div>
+                    <div class="stat-value">16.75%</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Number of Cases</div>
+                    <div class="stat-value">9</div>
+                </div>
+            </div>
+
+            <h3>Faulty Data Definition</h3>
+            <div class="example-card">
+                <div class="code-block">
+# Altitude Correction
+Expected_Temp_Diff = (Altitude_Difference / 100) × (-0.65°C)
+
+# Actual Temperature Difference
+Actual_Temp_Diff = Sensor_Temperature - Met_Temperature
+
+# Signed Error
+Signed_Error = Actual_Temp_Diff - Expected_Temp_Diff
+
+# Error Detection
+|Signed_Error| > 4°C  →  FAULTY (Is_Error = 1)
+                </div>
+                <p style="margin-top: 15px;">
+                    <strong>Example:</strong> Sensor reads 30°C, Meteorology reads 25°C. Altitude difference 200m (sensor lower).<br>
+                    Expected_Temp_Diff = (200/100) × (-0.65) = -1.3°C → Sensor should be 1.3°C cooler<br>
+                    Actual_Temp_Diff = 30 - 25 = 5°C<br>
+                    Signed_Error = 5 - (-1.3) = 6.3°C → <span style="color: #ef4444; font-weight: bold;">FAULTY!</span>
+                </p>
+            </div>
+
+            <div class="info-banner">
+                With this approach, we can exclude natural temperature differences due to altitude difference
+                and detect real sensor errors!
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 10: 15-DAY SLIDING WINDOW
+             ==================================================================== -->
+        <div class="slide" id="slide-sliding-window">
+            <h2>15-Day Sliding Window Analysis</h2>
+
+            <div class="highlight-box">
+                <h3>Why Sliding Window?</h3>
+                <p>
+                    Sensor errors can exhibit <strong>behaviors that change over time</strong>.
+                    Instead of instantaneous error detection, we detect error type by analyzing sensor behavior
+                    in <strong>15-day periods</strong>.
+                </p>
+            </div>
+
+            <div class="workflow-diagram">
+                <div class="workflow-box">
+                    <strong>July 1</strong><br>
+                    Start
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>July 15</strong><br>
+                    Window 1<br>
+                    <span style="font-size: 0.85em; color: #667eea;">Calculate metrics</span>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>July 2</strong><br>
+                    Start (shift)
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>July 16</strong><br>
+                    Window 2<br>
+                    <span style="font-size: 0.85em; color: #667eea;">Calculate metrics</span>
+                </div>
+            </div>
+
+            <h3>Window Requirements</h3>
+            <div class="step-container">
+                <div class="step">
+                    <div class="step-number">15</div>
+                    <h4>Day Duration</h4>
+                    <p>Each window contains exactly 15 days of data</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Day Shift</h4>
+                    <p>Window shifts forward by 1 day each time (sliding window)</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">150</div>
+                    <h4>Min Readings</h4>
+                    <p>Window must contain at least 150 measurements</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">15</div>
+                    <h4>Min Different Days</h4>
+                    <p>Data must exist on at least 15 different days</p>
+                </div>
+            </div>
+
+            <h3>Metrics Calculated for Each Window</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Metric Category</th>
+                            <th>Calculated Values</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>General Error</strong></td>
+                            <td>Error rate, average error, standard deviation</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Error Type</strong></td>
+                            <td>High error %, low error %, daytime high error %</td>
+                        </tr>
+                        <tr>
+                            <td><strong>FCB Status</strong></td>
+                            <td>FCB ON/OFF error rates, FCB ON/OFF average error</td>
+                        </tr>
+                        <tr>
+                            <td><strong>AC Status</strong></td>
+                            <td>AC ON/OFF error rates, AC ON/OFF average error</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Weather Conditions</strong></td>
+                            <td>Average humidity, rainy day %, humidity>90rh error %</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 11: 9 CASE DEFINITIONS
+             ==================================================================== -->
+        <div class="slide" id="slide-case-definitions">
+            <h2>9 Case (Error Type) Definitions</h2>
+
+            <p style="font-size: 1.15em; margin-bottom: 30px;">
+                Each window is assigned to a case according to <strong>priority order</strong> based on calculated metrics:
+            </p>
+
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Case Name</th>
+                            <th>Description</th>
+                            <th>Detection Criterion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #f0fdf4;">
+                            <td><strong>1</strong></td>
+                            <td><strong>Sensor Reading Correctly</strong></td>
+                            <td>Sensor working properly, no error</td>
+                            <td>Error rate < 1%</td>
+                        </tr>
+                        <tr>
+                            <td><strong>2</strong></td>
+                            <td><strong>Reading High When FCB Off</strong></td>
+                            <td>Sensor reads high when FCB is off</td>
+                            <td>≥80% of errors when FCB OFF + correct when FCB ON</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3</strong></td>
+                            <td><strong>Reading Low When AC On</strong></td>
+                            <td>Sensor reads low when AC is on</td>
+                            <td>≥80% of errors when AC ON + correct when AC OFF</td>
+                        </tr>
+                        <tr style="background: #fef2f2;">
+                            <td><strong>4</strong></td>
+                            <td><strong>Continuously Reading High</strong></td>
+                            <td>Sensor continuously shows higher values than actual</td>
+                            <td>Error rate >80% + >90% of errors are high</td>
+                        </tr>
+                        <tr style="background: #eff6ff;">
+                            <td><strong>5</strong></td>
+                            <td><strong>Continuously Reading Low</strong></td>
+                            <td>Sensor continuously shows lower values than actual</td>
+                            <td>Error rate >80% + >90% of errors are low</td>
+                        </tr>
+                        <tr>
+                            <td><strong>6</strong></td>
+                            <td><strong>Reading High During Daytime</strong></td>
+                            <td>High readings only during daytime hours (06:00-18:00)</td>
+                            <td>Error rate >1% + >80% of errors are daytime high</td>
+                        </tr>
+                        <tr>
+                            <td><strong>7</strong></td>
+                            <td><strong>Faulty in High Humidity</strong></td>
+                            <td>Sensor makes errors when humidity >90%</td>
+                            <td>Error rate >10% + >95% of errors have humidity>90rh</td>
+                        </tr>
+                        <tr>
+                            <td><strong>8</strong></td>
+                            <td><strong>Faulty in Rainy Weather</strong></td>
+                            <td>Sensor makes errors when it rains/snows</td>
+                            <td>Error rate >10% + >90% of errors are rainy</td>
+                        </tr>
+                        <tr style="background: #fffbeb;">
+                            <td><strong>9</strong></td>
+                            <td><strong>Sensor Reading Irregularly Faulty</strong></td>
+                            <td>No specific pattern, irregular error</td>
+                            <td>Error rate >1% + Doesn't fit other cases</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="info-banner">
+                Priority Matters! Case detection is done sequentially from top to bottom. First matching case is assigned.
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 12: CASE DETECTION LOGIC
+             ==================================================================== -->
+        <div class="slide" id="slide-case-logic">
+            <h2>Case Detection Logic - Detailed Examples</h2>
+
+            <!-- Case 1 Example -->
+            <div class="example-card">
+                <h3 style="color: #10b981;">Case 1: Sensor Reading Correctly</h3>
+                <p><strong>Scenario:</strong> BOX 1234, July 1-15 window</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+                    <div>
+                        <p><strong>Metrics:</strong></p>
+                        <ul>
+                            <li>Error rate: <strong>0.5%</strong></li>
+                            <li>Total readings: 432</li>
+                            <li>Faulty readings: 2</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p><strong>Decision:</strong></p>
+                        <p style="color: #10b981; font-weight: bold; font-size: 1.2em;">
+                            Case 1 - Sensor Reading Correctly<br>
+                            <span style="font-size: 0.85em;">(Error rate < 1%)</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Case 2 Example -->
+            <div class="example-card">
+                <h3 style="color: #f59e0b;">Case 2: Reading High When FCB Off</h3>
+                <p><strong>Scenario:</strong> BOX 5678, August 5-19 window</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+                    <div>
+                        <p><strong>Metrics:</strong></p>
+                        <ul>
+                            <li>Error rate: <strong>15%</strong></li>
+                            <li>FCB OFF error share: <strong>85%</strong></li>
+                            <li>FCB ON error rate: <strong>12%</strong> (correct rate: 88%)</li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p><strong>Decision:</strong></p>
+                        <p style="color: #f59e0b; font-weight: bold; font-size: 1.2em;">
+                            Case 2 - Reading High When FCB Off
+                            <br><span style="font-size: 0.85em;">(FCB off → problem)</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Case 4 Example -->
+            <div class="example-card">
+                <h3 style="color: #ef4444;">Case 4: Continuously Reading High</h3>
+                <p><strong>Scenario:</strong> BOX 9101, September 10-24 window</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+                    <div>
+                        <p><strong>Metrics:</strong></p>
+                        <ul>
+                            <li>Error rate: <strong>87%</strong></li>
+                            <li>High error share: <strong>94%</strong></li>
+                            <li>Average signed error: <strong>+7.3°C</strong></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p><strong>Decision:</strong></p>
+                        <p style="color: #ef4444; font-weight: bold; font-size: 1.2em;">
+                            Case 4 - Continuously Reading High
+                            <br><span style="font-size: 0.85em;">(Sensor faulty/calibration broken)</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Case 6 Example -->
+            <div class="example-card">
+                <h3 style="color: #3b82f6;">Case 6: Reading High During Daytime</h3>
+                <p><strong>Scenario:</strong> BOX 1122, July 15-29 window</p>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin: 15px 0;">
+                    <div>
+                        <p><strong>Metrics:</strong></p>
+                        <ul>
+                            <li>Error rate: <strong>22%</strong></li>
+                            <li>Daytime high error share: <strong>88%</strong></li>
+                            <li>Night error rate: <strong>3%</strong></li>
+                        </ul>
+                    </div>
+                    <div>
+                        <p><strong>Decision:</strong></p>
+                        <p style="color: #3b82f6; font-weight: bold; font-size: 1.2em;">
+                            Case 6 - Reading High During Daytime
+                            <br><span style="font-size: 0.85em;">(Sunlight effect/heating)</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 13: LABELING RESULTS
+             ==================================================================== -->
+        <div class="slide" id="slide-labeling-results">
+            <h2>Labeling Results and Summary</h2>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Processed Sensors</div>
+                    <div class="stat-value">1,570</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">FC_BOX devices</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Created Windows</div>
+                    <div class="stat-value">106,823</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">15-day analysis periods</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Processing Time</div>
+                    <div class="stat-value">~5 min</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">fully automatic</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Output File</div>
+                    <div class="stat-value">28</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">features</p>
+                </div>
+            </div>
+
+            <h3>Achievements</h3>
+            <div class="highlight-box">
+                <ul style="font-size: 1.1em; line-height: 1.8;">
+                    <li><strong>Automatic case detection:</strong> 9 different error types defined</li>
+                    <li><strong>Time series analysis:</strong> Dynamic analysis with 15-day sliding window</li>
+                    <li><strong>Multi-layer analysis:</strong> FCB status, AC status, weather conditions integrated</li>
+                    <li><strong>Altitude correction:</strong> Natural temperature differences not counted as errors</li>
+                    <li><strong>Machine learning ready:</strong> Labeled dataset ready for supervised learning</li>
+                </ul>
+            </div>
+
+            <h3>Output Data Structure</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Feature Group</th>
+                            <th>Content</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Window Information</strong></td>
+                            <td>FC_BOX_CODE, Window_Start, Window_End, Days_In_Window, Total_Readings</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Error Metrics</strong></td>
+                            <td>Error_Count, Error_Rate_All, Avg_Error_All, Std_Error_All, Error_High_Frac, Error_Low_Frac</td>
+                        </tr>
+                        <tr>
+                            <td><strong>FCB Metrics</strong></td>
+                            <td>FCB_On_Ratio, Error_FCB_On_Frac, Error_Rate_FCB_On, Avg_Error_FCB_On, ...</td>
+                        </tr>
+                        <tr>
+                            <td><strong>AC Metrics</strong></td>
+                            <td>Error_Rate_Klima_On, Error_Rate_Klima_Off, Avg_Error_Klima_On, ...</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Weather Conditions</strong></td>
+                            <td>Humidity_Avg, Rain_Ratio, Sunny_Ratio, Rain_Error_Frac, Humid_Error_Frac</td>
+                        </tr>
+                        <tr style="background: #f0fdf4;">
+                            <td><strong>Label</strong></td>
+                            <td><strong>Vaka_No, Vaka_Adi</strong> (case type 1-9)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="info-banner">
+                Result: 106,823 labeled windows ready for machine learning!<br>
+                Each window has a case type (label) - Supervised Learning can begin!
+            </div>
+
+            <!-- Stage Completion Banner -->
+            <div style="text-align: center; margin-top: 60px; padding: 40px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 20px;">
+                <h2 style="color: #667eea; margin-bottom: 20px;">Second Stage Completed!</h2>
+                <p style="font-size: 1.3em; color: #555;">
+                    You've learned all the details of the data labeling process.<br>
+                    Now let's move on to detailed analysis results!
+                </p>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 14: CASE DISTRIBUTION ANALYSIS
+             ==================================================================== -->
+        <div class="slide" id="slide-case-distribution">
+            <h2>Third Stage: Case Distribution Analysis</h2>
+
+            <div class="highlight-box">
+                <h3>Detailed Analysis of Labeled Data</h3>
+                <p>
+                    106,823 windows were successfully labeled. Now we're analyzing the distribution and
+                    characteristics of these labels to discover how common each error type is.
+                </p>
+            </div>
+
+            <h3>Distribution of 9 Case Types</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Case Type</th>
+                            <th>Window Count</th>
+                            <th>Percentage</th>
+                            <th>Unique Sensors</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr style="background: #fffbeb;">
+                            <td><strong>1. Sensor Reading Irregularly Faulty</strong></td>
+                            <td><strong>46,039</strong></td>
+                            <td><strong>43.1%</strong></td>
+                            <td>1,089 sensors</td>
+                        </tr>
+                        <tr style="background: #f0fdf4;">
+                            <td><strong>6. Reading High During Daytime</strong></td>
+                            <td><strong>25,340</strong></td>
+                            <td><strong>23.7%</strong></td>
+                            <td>739 sensors</td>
+                        </tr>
+                        <tr style="background: #fffbeb;">
+                            <td><strong>2. Reading High When FCB Off</strong></td>
+                            <td><strong>19,513</strong></td>
+                            <td><strong>18.3%</strong></td>
+                            <td>836 sensors</td>
+                        </tr>
+                        <tr style="background: #f0fdf4;">
+                            <td><strong>1. Sensor Reading Correctly</strong></td>
+                            <td><strong>12,192</strong></td>
+                            <td><strong>11.4%</strong></td>
+                            <td>447 sensors</td>
+                        </tr>
+                        <tr>
+                            <td><strong>3. Reading Low When AC On</strong></td>
+                            <td>2,418</td>
+                            <td>2.3%</td>
+                            <td>328 sensors</td>
+                        </tr>
+                        <tr>
+                            <td><strong>5. Continuously Reading Low</strong></td>
+                            <td>783</td>
+                            <td>0.7%</td>
+                            <td>14 sensors</td>
+                        </tr>
+                        <tr>
+                            <td><strong>4. Continuously Reading High</strong></td>
+                            <td>449</td>
+                            <td>0.4%</td>
+                            <td>18 sensors</td>
+                        </tr>
+                        <tr>
+                            <td><strong>7. Faulty in High Humidity</strong></td>
+                            <td>89</td>
+                            <td>0.08%</td>
+                            <td>3 sensors</td>
+                        </tr>
+                        <tr style="background: #fef2f2;">
+                            <td colspan="4"><strong>8. Faulty in Rainy Weather:</strong> None detected</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="stats-grid" style="margin-top: 30px;">
+                <div class="stat-card">
+                    <div class="stat-label">Most Common Case</div>
+                    <div class="stat-value">43.1%</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">Irregularly Faulty</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Reading Correctly</div>
+                    <div class="stat-value">11.4%</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">Only 11.4%</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Faulty Sensor Rate</div>
+                    <div class="stat-value">88.6%</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">Faulty in some way</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Class Imbalance</div>
+                    <div class="stat-value">517:1</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">Most/least ratio</p>
+                </div>
+            </div>
+
+            <div class="info-banner" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+                Critical Finding: 88.6% rate of faulty sensor behavior detected!
+                Most common problem: Irregular faulty readings (43.1%)
+            </div>
+
+            <h3 style="margin-top: 40px;">Case Distribution Visualization</h3>
+            <div style="text-align: center; margin: 30px 0;">
+                <img src="02_class_distribution.png" alt="Case Distribution" style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <p style="margin-top: 15px; color: #666; font-style: italic;">
+                    Chart: Window count and percentage distribution of 8 different case types
+                </p>
+            </div>
+
+            <h3 style="margin-top: 30px;">Unique Sensor Counts per Case</h3>
+            <div style="text-align: center; margin: 30px 0;">
+                <img src="03_unique_devices_per_vaka.png" alt="Sensor Counts per Case" style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <p style="margin-top: 15px; color: #666; font-style: italic;">
+                    Chart: How many unique sensors were detected in each case type and average window count per sensor
+                </p>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 15: MOST PROBLEMATIC SENSORS
+             ==================================================================== -->
+        <div class="slide" id="slide-problematic-sensors">
+            <h2>Most Problematic Sensors Analysis</h2>
+
+            <div class="highlight-box">
+                <h3>Top 20 Sensor Review</h3>
+                <p>
+                    Analysis of the 20 sensors with the most windows. These sensors have 78 windows
+                    (maximum possible window count), meaning they produced data continuously throughout the entire period.
+                </p>
+            </div>
+
+            <h3>Top 20 Sensors and Error Types</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin: 30px 0;">
+                <div class="example-card">
+                    <h4 style="color: #667eea;">Important Observations</h4>
+                    <ul style="font-size: 1.05em; line-height: 1.8;">
+                        <li><strong>All top 20 sensors:</strong> 78 windows (maximum)</li>
+                        <li><strong>Most common error:</strong> "sensor_reading_irregularly_faulty" (yellow)</li>
+                        <li><strong>Second common:</strong> "reading_high_during_daytime" (green)</li>
+                        <li><strong>Third common:</strong> "reading_high_when_fcb_off" (pink)</li>
+                        <li><strong>Few:</strong> "sensor_reading_correctly" (orange)</li>
+                    </ul>
+                </div>
+                <div class="example-card">
+                    <h4 style="color: #f59e0b;">Critical Sensors</h4>
+                    <ul style="font-size: 1.05em; line-height: 1.8;">
+                        <li><strong>BOX 236, 2341, 2329, 2330:</strong> FCB problem</li>
+                        <li><strong>BOX 2338, 2363:</strong> Daytime high reading</li>
+                        <li><strong>Majority:</strong> Irregular faulty behavior</li>
+                        <li><strong>Only BOX 1, 235:</strong> Reading correctly</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="workflow-diagram">
+                <div class="workflow-box">
+                    <strong>1,493</strong><br>
+                    Total Sensors
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>1,089</strong><br>
+                    Irregularly Faulty<br>
+                    <span style="font-size: 0.85em; color: #667eea;">(73%)</span>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>739</strong><br>
+                    Daytime High<br>
+                    <span style="font-size: 0.85em; color: #667eea;">(49%)</span>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>447</strong><br>
+                    Reading Correctly<br>
+                    <span style="font-size: 0.85em; color: #10b981;">(30%)</span>
+                </div>
+            </div>
+
+            <h3>Average Window Count per Sensor</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Statistic</th>
+                            <th>Value</th>
+                            <th>Description</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Mean</strong></td>
+                            <td>71.55 windows</td>
+                            <td>Average analysis period per sensor</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Median</strong></td>
+                            <td>78 windows</td>
+                            <td>Most sensors have maximum windows</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Maximum</strong></td>
+                            <td>78 windows</td>
+                            <td>15 days x 78 days = entire period</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Minimum</strong></td>
+                            <td>4 windows</td>
+                            <td>Some sensors active for short period</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="info-banner">
+                Statistic: While 30% of 1,493 sensors work correctly, 73% make irregular faulty readings!
+            </div>
+
+            <h3 style="margin-top: 40px;">Top 20 Sensors Visualization</h3>
+            <div style="text-align: center; margin: 30px 0;">
+                <img src="03_top20_sensors_analysis.png" alt="Top 20 Sensors" style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <p style="margin-top: 15px; color: #666; font-style: italic;">
+                    Chart: 20 sensors with most windows and most common error type for each sensor (colored bars)
+                </p>
+            </div>
+
+            <!-- Color Code Legend -->
+            <div class="example-card" style="margin-top: 30px;">
+                <h4>Color Code Explanation</h4>
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-top: 15px;">
+                    <div style="padding: 10px; background: #fbbf24; border-radius: 5px; text-align: center;">
+                        <strong>Yellow/Orange</strong><br>
+                        Irregularly Faulty
+                    </div>
+                    <div style="padding: 10px; background: #10b981; border-radius: 5px; text-align: center;">
+                        <strong>Green</strong><br>
+                        Daytime High
+                    </div>
+                    <div style="padding: 10px; background: #f87171; border-radius: 5px; text-align: center;">
+                        <strong>Pink/Red</strong><br>
+                        FCB Off
+                    </div>
+                    <div style="padding: 10px; background: #f59e0b; border-radius: 5px; text-align: center;">
+                        <strong>Orange</strong><br>
+                        Sensor Correct
+                    </div>
+                    <div style="padding: 10px; background: #3b82f6; border-radius: 5px; text-align: center;">
+                        <strong>Blue</strong><br>
+                        Other Cases
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 16: CASE-BASED STATISTICS
+             ==================================================================== -->
+        <div class="slide" id="slide-case-statistics">
+            <h2>Case-Based Detailed Statistics</h2>
+
+            <h3>Error Pattern Analysis</h3>
+            <div class="table-container">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Case Type</th>
+                            <th>High Error %</th>
+                            <th>Low Error %</th>
+                            <th>Characteristic</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>Reading Correctly</strong></td>
+                            <td>29.6%</td>
+                            <td>16.9%</td>
+                            <td>Minimum error, balanced</td>
+                        </tr>
+                        <tr style="background: #fef2f2;">
+                            <td><strong>Continuously High</strong></td>
+                            <td><strong>100.0%</strong></td>
+                            <td>0.0%</td>
+                            <td>Only high readings</td>
+                        </tr>
+                        <tr style="background: #eff6ff;">
+                            <td><strong>Continuously Low</strong></td>
+                            <td>0.1%</td>
+                            <td><strong>99.9%</strong></td>
+                            <td>Only low readings</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Daytime High</strong></td>
+                            <td><strong>98.2%</strong></td>
+                            <td>1.8%</td>
+                            <td>Sunlight effect</td>
+                        </tr>
+                        <tr>
+                            <td><strong>FCB Off</strong></td>
+                            <td><strong>77.1%</strong></td>
+                            <td>22.9%</td>
+                            <td>Problem when FCB off</td>
+                        </tr>
+                        <tr>
+                            <td><strong>AC On</strong></td>
+                            <td>72.1%</td>
+                            <td>27.9%</td>
+                            <td>Problem when AC on</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Irregularly Faulty</strong></td>
+                            <td>62.1%</td>
+                            <td>37.9%</td>
+                            <td>Mixed pattern</td>
+                        </tr>
+                        <tr>
+                            <td><strong>High Humidity</strong></td>
+                            <td><strong>80.7%</strong></td>
+                            <td>19.3%</td>
+                            <td>Error when humidity >90%</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <h3>Environmental Conditions</h3>
+            <div class="step-container">
+                <div class="step">
+                    <div class="step-number">📊</div>
+                    <h4>Average Humidity</h4>
+                    <p><strong>All cases:</strong> ~30-31% average humidity</p>
+                    <p><strong>Exception:</strong> "Faulty in high humidity" case in high humidity environments</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">☀️</div>
+                    <h4>Sunny Days</h4>
+                    <p><strong>Daytime high:</strong> Errors increase on sunny days</p>
+                    <p><strong>Normal sensors:</strong> Sunny days don't affect</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">🌧️</div>
+                    <h4>Rainy Weather</h4>
+                    <p><strong>Low impact:</strong> Rain generally rare</p>
+                    <p><strong>Case 8:</strong> Never detected (rain may be rare)</p>
+                </div>
+            </div>
+
+            <h3>FCB and AC Status Effects</h3>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="example-card">
+                    <h4 style="color: #f59e0b;">FCB (Fresh Air Box) Effect</h4>
+                    <p><strong>Case 2:</strong> 77% high error when FCB off</p>
+                    <p><strong>Normal:</strong> FCB on/off doesn't matter</p>
+                    <p><strong>Result:</strong> FCB status critical in 836 sensors</p>
+                </div>
+                <div class="example-card">
+                    <h4 style="color: #3b82f6;">AC Effect</h4>
+                    <p><strong>Case 3:</strong> 72% high error when AC on</p>
+                    <p><strong>Normal:</strong> AC status doesn't matter</p>
+                    <p><strong>Result:</strong> AC causes problems in 328 sensors</p>
+                </div>
+            </div>
+
+            <h3 style="margin-top: 40px;">Top 20 Sensors - Case Distribution Heatmap</h3>
+            <div style="text-align: center; margin: 30px 0;">
+                <img src="04_vaka_by_top20_sensors_heatmap.png" alt="Case Distribution Heatmap" style="max-width: 100%; height: auto; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                <p style="margin-top: 15px; color: #666; font-style: italic;">
+                    Chart: Which case types appear in what percentage in each of the top 20 sensors (percentage distribution)
+                </p>
+            </div>
+
+            <!-- Heatmap Reading Guide -->
+            <div class="example-card" style="margin-top: 30px;">
+                <h4>How to Read the Heatmap?</h4>
+                <ul style="font-size: 1.05em; line-height: 1.8;">
+                    <li><strong>Rows:</strong> Each row represents a sensor (BOX 1, BOX 2338, etc.)</li>
+                    <li><strong>Columns:</strong> Each column represents a case type</li>
+                    <li><strong>Colors:</strong> Yellow/Orange/Red = High percentage, White/Light = Low percentage</li>
+                    <li><strong>Numbers:</strong> Number in each cell shows what percentage of time that sensor spent in that case type</li>
+                    <li><strong>Example:</strong> BOX 236's 100% is in "reading_high_when_fcb_off" case (dark red)</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- ====================================================================
+             SLIDE 17: ML RECOMMENDATIONS & CONCLUSION
+             ==================================================================== -->
+        <div class="slide" id="slide-conclusion">
+            <h2>Machine Learning Recommendations and Conclusion</h2>
+
+            <div class="highlight-box">
+                <h3>Critical Challenges</h3>
+                <ul style="font-size: 1.1em; line-height: 1.8;">
+                    <li><strong>Severe Class Imbalance:</strong> 517:1 ratio - Most common case 43.1%, rarest 0.08%</li>
+                    <li><strong>Missing Data:</strong> 9-33% missing data in FCB and AC metrics</li>
+                    <li><strong>17 High Correlations:</strong> Most metrics highly correlated with each other</li>
+                    <li><strong>8 Cases instead of 9:</strong> "Faulty in rainy weather" never detected</li>
+                </ul>
+            </div>
+
+            <h3>Recommended Solutions</h3>
+            <div class="step-container">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h4>Class Imbalance</h4>
+                    <ul>
+                        <li>SMOTE (oversampling)</li>
+                        <li>Use class weights</li>
+                        <li>Stratified sampling</li>
+                        <li>Ensemble methods</li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h4>Feature Selection</h4>
+                    <ul>
+                        <li>Remove correlation >0.8</li>
+                        <li>Feature importance analysis</li>
+                        <li>Apply PCA or LDA</li>
+                        <li>Use domain knowledge</li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h4>Model Selection</h4>
+                    <ul>
+                        <li>XGBoost / LightGBM</li>
+                        <li>Random Forest (balanced)</li>
+                        <li>Neural Networks</li>
+                        <li>Ensemble voting</li>
+                    </ul>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h4>Evaluation</h4>
+                    <ul>
+                        <li>F1-Score (per class)</li>
+                        <li>Confusion Matrix</li>
+                        <li>Stratified K-Fold CV</li>
+                        <li>ROC-AUC (One-vs-Rest)</li>
+                    </ul>
+                </div>
+            </div>
+
+            <h3>Recommended ML Pipeline</h3>
+            <div class="workflow-diagram">
+                <div class="workflow-box">
+                    <strong>1. Preprocessing</strong><br>
+                    Missing value imputation<br>
+                    Feature scaling<br>
+                    <span style="font-size: 0.85em; color: #667eea;">StandardScaler</span>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>2. Feature Engineering</strong><br>
+                    Remove high correlation<br>
+                    Create interaction terms<br>
+                    <span style="font-size: 0.85em; color: #667eea;">17 pairs to handle</span>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>3. Balancing</strong><br>
+                    SMOTE + Tomek<br>
+                    Class weights<br>
+                    <span style="font-size: 0.85em; color: #667eea;">517:1 → 1:1</span>
+                </div>
+                <div class="workflow-arrow">→</div>
+                <div class="workflow-box">
+                    <strong>4. Modeling</strong><br>
+                    XGBoost ensemble<br>
+                    Stratified CV<br>
+                    <span style="font-size: 0.85em; color: #667eea;">Hyperparameter tuning</span>
+                </div>
+            </div>
+
+            <div class="info-banner">
+                Goal: Automatic faulty sensor detection system by correctly classifying 8 case types!
+            </div>
+
+            <h3>Summary - All Stages</h3>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Stage 1: Matching</div>
+                    <div class="stat-value">2.4M+</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">matched records</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Stage 2: Labeling</div>
+                    <div class="stat-value">106K+</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">labeled windows</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Stage 3: Analysis</div>
+                    <div class="stat-value">8</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">different error types</p>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Next Stage</div>
+                    <div class="stat-value">ML</div>
+                    <p style="font-size: 0.9em; margin-top: 10px;">model training</p>
+                </div>
+            </div>
+
+            <!-- Final Completion Banner -->
+            <div style="text-align: center; margin-top: 60px; padding: 40px; background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%); border-radius: 20px;">
+                <h2 style="color: #667eea; margin-bottom: 20px;">Analysis Completed!</h2>
+                <p style="font-size: 1.3em; color: #555;">
+                    All stages successfully completed!<br>
+                    1,570 sensors, 106,823 windows analyzed.<br>
+                    You're now ready to train a machine learning model!
+                </p>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ==========================================================================
+         LOAD CUSTOM SCRIPTS
+         ========================================================================== -->
+    <script src="script.js"></script>
+
+</body>
+</html>
